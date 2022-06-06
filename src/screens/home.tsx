@@ -5,87 +5,125 @@ import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import axios from "axios";
 import React, { FC, useEffect, useState } from "react";
 import {
-	FlatList,
-	View,
-	Text,
-	ActivityIndicator,
-	TouchableOpacity,
+  FlatList,
+  View,
+  Text,
+  ActivityIndicator,
+  TouchableOpacity,
 } from "react-native";
-import { ScreenStyles } from "../styles/screens";
 import { routeProp } from "../types/navigation";
 
 const Home: FC = () => {
-	const [page, setPage] = useState<number>(0);
-	const [data, setData] = useState<any[]>([]);
+  const [data, setData] = useState<any[]>([]);
+  const [page, setPage] = useState<number>(1);
+  const navigation = useNavigation<NativeStackNavigationProp<routeProp>>();
+  let interval: NodeJS.Timer;
 
-	const [loading, setLoading] = useState<boolean>(false);
+  const handelPage = () => {
+    setPage((p: any) => p + 1);
+  };
 
-	const navigation = useNavigation<NativeStackNavigationProp<routeProp>>();
+  const fetchData = async () => {
+    try {
+      const res = await axios.get(
+        `https://hn.algolia.com/api/v1/search_by_date?query=story&page=${page}`
+      );
+      console.log(res.data.hits);
+      setData([...data, ...res.data.hits]);
+    } catch (e) {
+      console.log("error");
+    }
+  };
 
-	useEffect(() => {
-		!loading && getData();
-		const interval = setInterval(() => {
-			incrementPage();
-		}, 10000);
+  useEffect(() => {
+    fetchData();
+    console.log(data);
+  }, [page]);
 
-		return () => {
-			clearInterval(interval);
-		};
-	}, []);
+  useEffect(() => {
+    interval = setInterval(handelPage, 10000);
+    return () => clearInterval(interval);
+  }, []);
 
-	useEffect(() => {
-		getData();
-	}, [page]);
+  const handleScroll = () => {
+    if (
+      window.scrollY + window.innerHeight >=
+      document.documentElement.scrollHeight
+    ) {
+      handelPage();
+    }
+  };
 
-	function incrementPage() {
-		!loading && setPage(page + 1);
-	}
+  useEffect(() => {
+    window.addEventListener("scroll", handleScroll);
 
-	function getData() {
-		setLoading(true);
-		axios
-			.get(
-				`https://hn.algolia.com/api/v1/search_by_date?tags=story&page=${page}`
-			)
-			.then((res) => {
-				setData(Array.from(new Set([...data, ...res.data.hits])));
-			})
-			.finally(() => {
-				setLoading(false);
-			});
-	}
+    return () => window.removeEventListener("scroll", handleScroll);
+  }, []);
 
-	return (
-		<View testID="home" style={ScreenStyles.screen}>
-			<FlatList
-				testID="home-list"
-				data={data}
-				renderItem={({ item }) => {
-					return (
-						<TouchableOpacity
-							style={ScreenStyles.item}
-							onPress={() => {
-								navigation.navigate("Details", {
-									item: JSON.stringify(item, null, 4),
-								});
-							}}
-						>
-							<Text style={ScreenStyles.itemText1}>{item.created_at}</Text>
-							<Text style={ScreenStyles.itemText2}>{item.url}</Text>
-							<Text style={ScreenStyles.itemText1}>{item.author}</Text>
-						</TouchableOpacity>
-					);
-				}}
-				onEndReachedThreshold={0.5}
-				onEndReached={incrementPage}
-				ListFooterComponent={() => {
-					if (loading) {
-						return <ActivityIndicator />;
-					} else return <View />;
-				}}
-			/>
-		</View>
-	);
+  return (
+    <View testID="home" style={{}}>
+      <>
+        {data?.length > 1 ? (
+          <>
+            <table>
+              <tr>
+                <td align="center">TITLE</td>
+                <td align="center">URL</td>
+                <td align="center">CREATED_AT</td>
+                <td align="center">AUTHOR</td>
+              </tr>
+
+              <tbody>
+                {data?.map((item: any, idx: any) => {
+                  return (
+                    <tr
+                      data-testid={`row-${idx}`}
+                      onClick={() => {
+                        navigation.navigate("Details", {
+                          item: item,
+                        });
+                      }}
+                    >
+                      <td>
+                        {item.title ? (
+                          item.title
+                        ) : item.story_title ? (
+                          item.story_title
+                        ) : (
+                          <i>data not found</i>
+                        )}
+                      </td>
+                      <td>
+                        {item.url ? (
+                          <a href={item.url}>{item.url}</a>
+                        ) : item.story_url ? (
+                          <a href={item.story_url}>{item.story_url}</a>
+                        ) : (
+                          <i>data not found</i>
+                        )}
+                      </td>
+                      <td>
+                        {item.created_at ? (
+                          item.created_at
+                        ) : (
+                          <i>data not found</i>
+                        )}
+                      </td>
+                      <td>
+                        {item.author ? item.author : <i>data not found</i>}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </>
+        ) : (
+          <>Loading...</>
+        )}
+      </>
+    </View>
+  );
 };
 
 export default Home;
